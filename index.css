@@ -97,6 +97,7 @@ body::-webkit-scrollbar-thumb {
 }
 
 .search__no-results {
+    display: none;
     padding: 16px 16px;
     text-align: center;
     margin: 0;

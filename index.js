@@ -40,7 +40,7 @@ const updateSearhHistory = () => {
 const addHistoryToSearchList = (searchResultslist, value) => {
     const searchHistory = JSON.parse(window.localStorage.getItem('searchHistory')) || [];
     const historyMatch = searchHistory.filter((item) => item.title.toLowerCase().startsWith(value.toLowerCase()));
-    if (historyMatch) {
+    if (historyMatch.length > 0) {
         historyMatch.forEach((item, index) => {
             if (index <= 5) {
                 const listItem = document.createElement('li');
@@ -90,6 +90,7 @@ const searchInpit = document.getElementById('search__input');
 const searchResults = document.querySelector('.search__results');
 const searchResultslist = document.querySelector('.search__results-list');
 const searchResultsLoader = document.querySelector('.search__results-loader');
+const searchNoResults = document.querySelector('.search__no-results');
 
 (async () => {
     updateSearhHistory();
@@ -98,11 +99,14 @@ const searchResultsLoader = document.querySelector('.search__results-loader');
         if (value) {
             searchResultslist.innerHTML = '';
             searchResults.classList.add('search__results_visible');
+            searchResultslist.classList.remove('visible');
+            searchNoResults.classList.remove('visible');
             searchResultsLoader.classList.add('visible');
 
             addHistoryToSearchList(searchResultslist, value);
 
             loadSearch(value).then((data) => {
+                console.log();
                 if (data?.length > 0) {
                     data.forEach((item, index) => {
                         const listItem = document.createElement('li');
@@ -115,7 +119,7 @@ const searchResultsLoader = document.querySelector('.search__results-loader');
                         listItem.addEventListener('click', searchResultClickHandler);
                     });
                 } else {
-                    searchResults.innerHTML = '<p class="search__no-results">We found nothing…</p>';
+                    searchNoResults.classList.add('visible');
                     searchResultsLoader.classList.remove('visible');
                 }
             });
