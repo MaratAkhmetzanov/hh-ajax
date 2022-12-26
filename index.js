@@ -42,13 +42,14 @@ const addHistoryToSearchList = (searchResultslist, value) => {
     const historyMatch = searchHistory.filter((item) => item.title.toLowerCase().startsWith(value.toLowerCase()));
     if (historyMatch.length > 0) {
         historyMatch.forEach((item, index) => {
-            if (index <= 5) {
+            if (index < 5) {
                 const listItem = document.createElement('li');
                 listItem.classList.add('search__results-list-item-history');
                 listItem.dataset.mal_id = item.mal_id;
                 listItem.innerText = item.title;
                 searchResultslist.appendChild(listItem);
                 listItem.addEventListener('click', (event) => {
+                    document.querySelector('.search__results').classList.remove('search__results_visible');
                     setResultData(event.target.dataset.mal_id);
                     searchInpit.value = event.target.innerText;
                 });
