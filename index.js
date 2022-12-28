@@ -71,7 +71,11 @@ const searchResultClickHandler = (event) => {
     } else {
         searchHistory = [{ title: event.target.innerText, mal_id }];
     }
-    window.localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    try {
+        window.localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    } catch {
+        console.log('Set local storage error');
+    }
 
     setResultData(event.target.dataset.mal_id);
     updateSearhHistory();
@@ -107,7 +111,6 @@ const searchNoResults = document.querySelector('.search__no-results');
             addHistoryToSearchList(searchResultslist, value);
 
             loadSearch(value).then((data) => {
-                console.log();
                 if (data?.length > 0) {
                     data.forEach((item, index) => {
                         const listItem = document.createElement('li');
