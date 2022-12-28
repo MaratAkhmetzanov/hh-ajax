@@ -1,6 +1,13 @@
+const searchInpit = document.getElementById('search__input');
+const searchResults = document.querySelector('.search__results');
+const searchResultslist = document.querySelector('.search__results-list');
+const searchResultsLoader = document.querySelector('.search__results-loader');
+const searchNoResults = document.querySelector('.search__no-results');
+const historyList = document.querySelector('.history__list');
+
 /**
  * Получение данных с по url через fetch (стырено из дз по js1 и измененно малость)
- * @param {string} url - адрес куда отправляется запрос
+ * @param {String} url - адрес куда отправляется запрос
  * @returns
  */
 const getData = async (url) =>
@@ -17,49 +24,45 @@ const getData = async (url) =>
 
 /**
  * Поисковой запрос на сервер по введенному тексту. Берем текст и получаем данные через getData и оттуда забираем только массив
- * @param {string} searchText - то что ввели в строку поиска
+ * @param {String} searchText - то что ввели в строку поиска
  * @returns - массив возможных вариантов
  */
-const loadSearch = async (searchText) => {
-    const result = await getData(`https://api.jikan.moe/v4/anime?limit=10&letter=${searchText}`);
+const loadSearch = async (searchText, count) => {
+    const result = await getData(`https://api.jikan.moe/v4/anime?limit=${count}&letter=${searchText}`);
     return result.data;
 };
 
 /**
- * Функция обновляющая историю результатов на странице. Берём список из localSrorage и обновляем блок с историей.
- * Работает при загрузке страницы и при добавлении элемента в историю.
+ * Добавление новой записи в localStorage
+ * @param {String} title - название аниме
+ * @param {Number} mal_id - id аниме
  */
-const updateSearhHistory = () => {
-    const historyList = document.querySelector('.history__list');
+const addToLocalStorage = (title, mal_id) => {
     let searchHistory = JSON.parse(window.localStorage.getItem('searchHistory'));
-    historyList.innerHTML = '';
+
     if (searchHistory) {
-        searchHistory.forEach((item) => {
-            const historyItem = document.createElement('li');
-            historyItem.classList.add('history__item');
-            historyItem.dataset.mal_id = item.mal_id;
-            historyItem.innerText = item.title;
-            historyList.appendChild(historyItem);
-            historyItem.addEventListener('click', (event) => {
-                setResultData(event.target.dataset.mal_id);
-                searchInpit.value = event.target.innerText;
-            });
-        });
-        document.querySelector('.history').classList.add('visible');
+        searchHistory = searchHistory.filter((item) => item.mal_id !== mal_id);
+        searchHistory = [{ title, mal_id }, ...searchHistory];
     } else {
-        document.querySelector('.history').classList.remove('visible');
+        searchHistory = [{ title, mal_id }];
     }
+
+    try {
+        window.localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    } catch {
+        console.log('Set local storage error');
+    }
+
+    updateSearhHistory();
 };
 
 /**
  * Добавляет в предложенные варианты поиска ещё и варианты из истории, если есть что-то подходящее.
  * Также на каждый элемент вешается слушатель события клика.
  * @param {*} searchResultslist - блок куда добавляются варианты.
- * @param {string} value - то что ввели строку поиска
+ * @param {Array} historyMatch - массив подходящих элементов из истории.
  */
-const addHistoryToSearchList = (searchResultslist, value) => {
-    const searchHistory = JSON.parse(window.localStorage.getItem('searchHistory')) || [];
-    const historyMatch = searchHistory.filter((item) => item.title.toLowerCase().startsWith(value.toLowerCase()));
+const addHistoryToSearchList = (searchResultslist, historyMatch) => {
     if (historyMatch.length > 0) {
         historyMatch.forEach((item, index) => {
             if (index < 5) {
@@ -68,11 +71,7 @@ const addHistoryToSearchList = (searchResultslist, value) => {
                 listItem.dataset.mal_id = item.mal_id;
                 listItem.innerText = item.title;
                 searchResultslist.appendChild(listItem);
-                listItem.addEventListener('click', (event) => {
-                    document.querySelector('.search__results').classList.remove('search__results_visible');
-                    setResultData(event.target.dataset.mal_id);
-                    searchInpit.value = event.target.innerText;
-                });
+                listItem.addEventListener('click', searchResultItemClickHandler);
             }
         });
         searchResultslist.insertAdjacentHTML('beforeend', '<hr class = "search__results-divider">');
@@ -80,36 +79,50 @@ const addHistoryToSearchList = (searchResultslist, value) => {
 };
 
 /**
- * Обработчик нажатия на элемент в предложенных вариантах поиска (которые с сервера прилетели).
- * Тут обновляем переменную в localStorage, добавляем результат поиска и обновляем историю поиска.
- * @param {clickEvent} event 
+ * Функция обновляющая историю результатов на странице. Берём список из localSrorage и обновляем блок с историей.
+ * Работает при загрузке страницы и при добавлении элемента в историю.
  */
-const searchResultClickHandler = (event) => {
-    const { mal_id } = event.target.dataset;
-    const searchInpit = document.getElementById('search__input');
+const updateSearhHistory = () => {
     let searchHistory = JSON.parse(window.localStorage.getItem('searchHistory'));
-    searchResults.classList.remove('search__results_visible');
-    console.log(searchHistory);
-    if (searchHistory) {
-        searchHistory = searchHistory.filter((item) => item.mal_id !== mal_id);
-        searchHistory = [{ title: event.target.innerText, mal_id }, ...searchHistory];
-    } else {
-        searchHistory = [{ title: event.target.innerText, mal_id }];
-    }
-    try {
-        window.localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
-    } catch {
-        console.log('Set local storage error');
-    }
+    historyList.innerHTML = '';
 
+    if (searchHistory) {
+        for (let i = 0; i < 3; i++) {
+            if (searchHistory[i]) {
+                const historyItem = document.createElement('li');
+                historyItem.classList.add('history__item');
+                historyItem.dataset.mal_id = searchHistory[i].mal_id;
+                historyItem.innerText = searchHistory[i].title;
+                historyList.appendChild(historyItem);
+                historyItem.addEventListener('click', (event) => {
+                    setResultData(event.target.dataset.mal_id);
+                    searchInpit.value = event.target.innerText;
+                });
+            } else {
+                break;
+            }
+        }
+        document.querySelector('.history').classList.add('visible');
+    } else {
+        document.querySelector('.history').classList.remove('visible');
+    }
+};
+
+/**
+ * Обработчик нажатия на элемент в предложенных вариантах поиска.
+ * Тут обновляем переменную в localStorage, обновляем историю поиска, добавляем результат под поле поиска.
+ * @param {Event} event
+ */
+const searchResultItemClickHandler = (event) => {
+    searchResults.classList.remove('search__results_visible');
+    addToLocalStorage(event.target.innerText, event.target.dataset.mal_id);
     setResultData(event.target.dataset.mal_id);
-    updateSearhHistory();
     searchInpit.value = event.target.innerText;
 };
 
 /**
  * Загружаем данные с сервера по id и отображаем на странице.
- * @param {number} id 
+ * @param {Number} id
  */
 const setResultData = async (id) => {
     const result = await getData(`https://api.jikan.moe/v4/anime/${id}`);
@@ -120,27 +133,26 @@ const setResultData = async (id) => {
     document.querySelector('.content__synopsis').innerText = result.data.synopsis;
 };
 
-const searchInpit = document.getElementById('search__input');
-const searchResults = document.querySelector('.search__results');
-const searchResultslist = document.querySelector('.search__results-list');
-const searchResultsLoader = document.querySelector('.search__results-loader');
-const searchNoResults = document.querySelector('.search__no-results');
-
 // Основной скрипт, который обрабатываем ввод в поле поиска и загружает историю при старте.
 (async () => {
     updateSearhHistory();
     searchInpit.addEventListener('input', (event) => {
         const { value } = event.target;
         if (value) {
-            searchResultslist.innerHTML = '';
             searchResults.classList.add('search__results_visible');
             searchResultslist.classList.remove('visible');
             searchNoResults.classList.remove('visible');
             searchResultsLoader.classList.add('visible');
 
-            addHistoryToSearchList(searchResultslist, value);
+            const searchHistory = JSON.parse(window.localStorage.getItem('searchHistory')) || [];
+            const historyMatch = searchHistory.filter((item) =>
+                item.title.toLowerCase().startsWith(value.toLowerCase()),
+            );
 
-            loadSearch(value).then((data) => {
+            const searchCount = historyMatch.length <= 5 ? 10 - historyMatch.length : 5;
+            loadSearch(value, searchCount).then((data) => {
+                searchResultslist.innerHTML = '';
+                addHistoryToSearchList(searchResultslist, historyMatch);
                 if (data?.length > 0) {
                     data.forEach((item, index) => {
                         const listItem = document.createElement('li');
@@ -148,13 +160,14 @@ const searchNoResults = document.querySelector('.search__no-results');
                         listItem.dataset.mal_id = item.mal_id;
                         listItem.innerText = item.title;
                         searchResultslist.appendChild(listItem);
+                        listItem.addEventListener('click', searchResultItemClickHandler);
                         searchResultslist.classList.add('visible');
                         searchResultsLoader.classList.remove('visible');
-                        listItem.addEventListener('click', searchResultClickHandler);
                     });
                 } else {
                     searchNoResults.classList.add('visible');
                     searchResultsLoader.classList.remove('visible');
+                    searchResultslist.classList.remove('visible');
                 }
             });
         } else {
@@ -162,4 +175,6 @@ const searchNoResults = document.querySelector('.search__no-results');
             searchResultslist.classList.remove('visible');
         }
     });
+
+    window.addEventListener('storage', updateSearhHistory);
 })();
