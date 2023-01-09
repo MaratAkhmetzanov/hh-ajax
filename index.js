@@ -1,7 +1,7 @@
 const searchInpit = document.getElementById('search__input');
 const searchResults = document.querySelector('.search__results');
 const searchResultslist = document.querySelector('.search__results-list');
-const searchResultsLoader = document.querySelector('.search__results-loader');
+const searchResultsStatus = document.querySelector('.search__results-loader');
 const searchNoResults = document.querySelector('.search__no-results');
 const historyList = document.querySelector('.history__list');
 
@@ -59,10 +59,9 @@ const addToLocalStorage = (title, mal_id) => {
 /**
  * Добавляет в предложенные варианты поиска ещё и варианты из истории, если есть что-то подходящее.
  * Также на каждый элемент вешается слушатель события клика.
- * @param {*} searchResultslist - блок куда добавляются варианты.
  * @param {Array} historyMatch - массив подходящих элементов из истории.
  */
-const addHistoryToSearchList = (searchResultslist, historyMatch) => {
+const addHistoryToSearchList = (historyMatch) => {
     if (historyMatch.length > 0) {
         historyMatch.forEach((item, index) => {
             if (index < 5) {
@@ -75,6 +74,28 @@ const addHistoryToSearchList = (searchResultslist, historyMatch) => {
             }
         });
         searchResultslist.insertAdjacentHTML('beforeend', '<hr class = "search__results-divider">');
+    }
+};
+
+/**
+ * Добавляет в предложенные варианты результаты поиска
+ * @param {Array} data - массив результатов
+ */
+const addResultToSearchList = (data) => {
+    if (data?.length > 0) {
+        data.forEach((item, index) => {
+            const listItem = document.createElement('li');
+            listItem.classList.add('search__results-list-item');
+            listItem.dataset.mal_id = item.mal_id;
+            listItem.innerText = item.title;
+            searchResultslist.appendChild(listItem);
+            listItem.addEventListener('click', searchResultItemClickHandler);
+            searchResultslist.classList.add('visible');
+            searchResultsStatus.classList.remove('visible');
+        });
+    } else {
+        searchResultsStatus.innerText = 'We found nothing…';
+        searchResultslist.classList.remove('visible');
     }
 };
 
@@ -111,7 +132,7 @@ const updateSearhHistory = () => {
 /**
  * Обработчик нажатия на элемент в предложенных вариантах поиска.
  * Тут обновляем переменную в localStorage, обновляем историю поиска, добавляем результат под поле поиска.
- * @param {Event} event
+ * @param {Event} event - событие нажатия на элемент списка
  */
 const searchResultItemClickHandler = (event) => {
     searchResults.classList.remove('search__results_visible');
@@ -122,7 +143,7 @@ const searchResultItemClickHandler = (event) => {
 
 /**
  * Загружаем данные с сервера по id и отображаем на странице.
- * @param {Number} id
+ * @param {Number} id - id аниме в базе
  */
 const setResultData = async (id) => {
     const result = await getData(`https://api.jikan.moe/v4/anime/${id}`);
@@ -133,48 +154,60 @@ const setResultData = async (id) => {
     document.querySelector('.content__synopsis').innerText = result.data.synopsis;
 };
 
+/**
+ * Обработчик ввода символов в поле поиска
+ * @param {Event} event - событие ввода символа в input
+ */
+const inputHandler = (event) => {
+    const { value } = event.target;
+    if (value) {
+        searchResults.classList.add('search__results_visible');
+        searchResultslist.classList.remove('visible');
+        searchResultsStatus.innerText = 'Loading…';
+        searchResultsStatus.classList.add('visible');
+
+        const searchHistory = JSON.parse(window.localStorage.getItem('searchHistory')) || [];
+        const historyMatch = searchHistory.filter((item) => item.title.toLowerCase().startsWith(value.toLowerCase()));
+        const searchCount = historyMatch.length <= 5 ? 10 - historyMatch.length : 5;
+        searchResultslist.innerHTML = '';
+
+        addHistoryToSearchList(historyMatch);
+
+        loadSearch(value, searchCount)
+            .then(addResultToSearchList)
+            .catch((error) => {
+                searchResultsStatus.innerText = error;
+            });
+    } else {
+        searchResults.classList.remove('search__results_visible');
+        searchResultslist.classList.remove('visible');
+    }
+};
+
+/**
+ * Функция для откладывания вызова другой функции. Чтобы отправлять меньше запросов на сервер,
+ * если пользователь вводит несколько символов подрят за короткое время
+ * и чтобы избежать ошибок из-за разной скорости ответа сервера
+ * @param {Function} callee - функция которую нужно откладывать
+ * @param {Number} timeoutMs - время на которое откладывается функция
+ * @returns Function
+ */
+const debounce =
+    (callee, timeoutMs) =>
+    (...args) => {
+        let previousCall = this.lastCall;
+        this.lastCall = Date.now();
+
+        if (previousCall && this.lastCall - previousCall <= timeoutMs) {
+            clearTimeout(this.lastCallTimer);
+        }
+        this.lastCallTimer = setTimeout(() => callee(...args), timeoutMs);
+    };
+
 // Основной скрипт, который обрабатываем ввод в поле поиска и загружает историю при старте.
 (async () => {
     updateSearhHistory();
-    searchInpit.addEventListener('input', (event) => {
-        const { value } = event.target;
-        if (value) {
-            searchResults.classList.add('search__results_visible');
-            searchResultslist.classList.remove('visible');
-            searchNoResults.classList.remove('visible');
-            searchResultsLoader.classList.add('visible');
-
-            const searchHistory = JSON.parse(window.localStorage.getItem('searchHistory')) || [];
-            const historyMatch = searchHistory.filter((item) =>
-                item.title.toLowerCase().startsWith(value.toLowerCase()),
-            );
-
-            const searchCount = historyMatch.length <= 5 ? 10 - historyMatch.length : 5;
-            loadSearch(value, searchCount).then((data) => {
-                searchResultslist.innerHTML = '';
-                addHistoryToSearchList(searchResultslist, historyMatch);
-                if (data?.length > 0) {
-                    data.forEach((item, index) => {
-                        const listItem = document.createElement('li');
-                        listItem.classList.add('search__results-list-item');
-                        listItem.dataset.mal_id = item.mal_id;
-                        listItem.innerText = item.title;
-                        searchResultslist.appendChild(listItem);
-                        listItem.addEventListener('click', searchResultItemClickHandler);
-                        searchResultslist.classList.add('visible');
-                        searchResultsLoader.classList.remove('visible');
-                    });
-                } else {
-                    searchNoResults.classList.add('visible');
-                    searchResultsLoader.classList.remove('visible');
-                    searchResultslist.classList.remove('visible');
-                }
-            });
-        } else {
-            searchResults.classList.remove('search__results_visible');
-            searchResultslist.classList.remove('visible');
-        }
-    });
-
+    const inputHandlerDebounce = debounce(inputHandler, 400);
+    searchInpit.addEventListener('input', inputHandlerDebounce);
     window.addEventListener('storage', updateSearhHistory);
 })();
